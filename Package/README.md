@@ -1,22 +1,35 @@
-# SeneaL Cape On Login
+# 🦸 SeneaL Cape On Login
 
-SeneaL UI keeps capes in a separate slot while Adventure Backpacks use the vanilla shoulder slot. After you log in, the saved cape can stay in your inventory without its bonuses or visuals until you touch the cape slot again.
+### Automatically Restore Your Cape After Loading
 
-This mod calls SeneaL’s internal `CapeSlot.Set` again after world load, spawn, and respawn when a saved cape is still in your inventory (including when the cape slot was cleared during `Player.Load`).
+A client-side Valheim mod that automatically re-applies your **SeneaL UI cape slot** after login, world loading, spawning, and respawning.
 
-Install on **clients** (same as SeneaL UI and Adventure Backpacks).
+Designed to work with **Adventure Backpacks**, including when the backpack occupies the shoulder slot, so your cape can return to the correct equipment slot without needing to re-equip it manually.
 
-## Changelog
+## ✨ Features
 
-### 1.0.2
+- **Automatic cape restoration** after login, world load, spawn, and respawn.
+- **SeneaL UI integration** to restore the cape to its dedicated equipment slot.
+- **Adventure Backpacks compatibility** with shoulder-slot equipment.
+- **Inventory recovery** if SeneaL UI's cape reference is cleared during loading.
+- **Delayed retry handling** to allow equipment initialization to finish before restoring the cape.
+- **Correct equipment layout** by relocating the cape into the equipment row instead of leaving it in the inventory grid.
 
-- Cape lands in SeneaL’s **equipment cape slot** after login (not stuck in the bag grid).
-- Finds cape in inventory when SeneaL’s slot was cleared on load; retries until Adventure Backpacks is ready.
+## 📦 Installation
 
-### 1.0.1
+Install the mod through your preferred Valheim mod manager, or use the package's manual installation instructions.
 
-- Login/load fix when `CapeSlot.Item` was empty; hook `Player.Load`.
+For additional installation details, see [`Package/README.md`](Package/README.md).
 
-### 1.0.0
+## 🛠️ Building
 
-- Initial release.
+The Thunderstore package can be built locally. The generated archive is not committed to the repository.
+
+Expected package output:
+
+`dist/cjayride-SenealCapeOnLogin-1.0.3.zip`
+
+## 🎨 Icon
+
+See [`ICON_PROMPT.md`](ICON_PROMPT.md) for the mod icon concept and generation prompt.
+

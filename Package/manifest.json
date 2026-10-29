@@ -1,10 +1,10 @@
 {
   "name": "SenealCapeOnLogin",
-  "version_number": "1.0.2",
+  "version_number": "1.0.3",
   "website_url": "https://github.com/cjayride/SenealCapeOnLogin",
   "description": "Re-applies your SeneaL UI cape after login when an Adventure Backpack is wearing the shoulder slot. Client side.",
   "dependencies": [
-    "denikson-BepInExPack_Valheim-5.4.2351",
+    "denikson-BepInExPack_Valheim-5.4.2360",
     "seneaL-SeneaL_UI-1.1.6",
     "Vapok-AdventureBackpacks-2.2.1"
   ]

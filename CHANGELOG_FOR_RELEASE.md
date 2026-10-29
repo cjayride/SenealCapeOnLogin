@@ -1,6 +1,11 @@
-# SeneaL Cape On Login — changelog (1.0.2)
+# SeneaL Cape On Login — changelog (1.0.3)
 
 Use this for Thunderstore “Changelog” or release notes.
+
+## 1.0.3
+
+- **Verified:** Valheim 1.0.21 (Release build).
+- **Updated:** BepInEx dependency `denikson-BepInExPack_Valheim-5.4.2360`.
 
 ## 1.0.2
 

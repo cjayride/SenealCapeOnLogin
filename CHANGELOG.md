@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+- Verified against Valheim 1.0.21 (Release build).
+- BepInEx dependency set to `denikson-BepInExPack_Valheim-5.4.2360`.
+
 ## 1.0.2
 
 - After `CapeSlot.Set`, call SeneaL’s `Slots.Relocate` so the cape appears in the equipment row (not left in the bag grid). Clicking the cape did this via the normal `EquipItem` postfix.

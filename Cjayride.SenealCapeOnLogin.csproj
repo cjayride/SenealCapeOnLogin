@@ -7,7 +7,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>Cjayride.SenealCapeOnLogin</AssemblyName>
     <RootNamespace>Cjayride.SenealCapeOnLogin</RootNamespace>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 

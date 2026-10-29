@@ -12,7 +12,7 @@ namespace Cjayride.SenealCapeOnLogin
     {
         public const string PluginGuid = "cjayride.SenealCapeOnLogin";
         public const string PluginName = "SeneaL Cape On Login";
-        public const string PluginVersion = "1.0.2";
+        public const string PluginVersion = "1.0.3";
 
         private void Awake()
         {

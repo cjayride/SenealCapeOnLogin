@@ -6,3 +6,5 @@ Environment.props
 Package/*.dll
 Package/*.zip
 Package/icon.png
+dist/*.zip
+dist/icon.png
