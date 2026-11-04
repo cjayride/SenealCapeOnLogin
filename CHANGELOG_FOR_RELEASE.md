@@ -1,6 +1,11 @@
-# SeneaL Cape On Login — changelog (1.0.3)
+# SeneaL Cape On Login — changelog (1.0.4)
 
 Use this for Thunderstore “Changelog” or release notes.
+
+## 1.0.4
+
+- **Verified:** Valheim 1.0.21 APIs (`Player.Load`, `OnSpawned(bool)`, `OnRespawn`, `m_shoulderItem`).
+- **Faster:** cached SeneaL delegates/field refs; one retry coroutine instead of three overlapping ones; lighter inventory scan.
 
 ## 1.0.3
 

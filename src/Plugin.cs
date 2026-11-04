@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Reflection;
 using BepInEx;
@@ -12,7 +13,7 @@ namespace Cjayride.SenealCapeOnLogin
     {
         public const string PluginGuid = "cjayride.SenealCapeOnLogin";
         public const string PluginName = "SeneaL Cape On Login";
-        public const string PluginVersion = "1.0.3";
+        public const string PluginVersion = "1.0.4";
 
         private void Awake()
         {
@@ -27,9 +28,9 @@ namespace Cjayride.SenealCapeOnLogin
     /// <summary>SeneaL UI inventory grid: equipping via UI calls <see cref="Relocate"/> after <c>EquipItem</c>.</summary>
     internal static class SenealInventorySlots
     {
-        private static readonly MethodInfo ReadyMethod;
-        private static readonly MethodInfo RelocateMethod;
-        private static readonly MethodInfo ChangedMethod;
+        private static readonly Func<Inventory, bool> Ready;
+        private static readonly Action<Inventory, ItemDrop.ItemData> Relocate;
+        private static readonly Action<Inventory> Changed;
 
         static SenealInventorySlots()
         {
@@ -37,12 +38,12 @@ namespace Cjayride.SenealCapeOnLogin
             if (slots == null)
                 return;
 
-            ReadyMethod = AccessTools.Method(slots, "Ready");
-            RelocateMethod = AccessTools.Method(slots, "Relocate");
-            ChangedMethod = AccessTools.Method(slots, "Changed");
+            Ready = DelegateFor<Func<Inventory, bool>>(AccessTools.Method(slots, "Ready"));
+            Relocate = DelegateFor<Action<Inventory, ItemDrop.ItemData>>(AccessTools.Method(slots, "Relocate"));
+            Changed = DelegateFor<Action<Inventory>>(AccessTools.Method(slots, "Changed"));
         }
 
-        internal static bool Available => RelocateMethod != null && ReadyMethod != null;
+        internal static bool Available => Relocate != null && Ready != null;
 
         internal static void PlaceInEquipRow(Inventory inventory, ItemDrop.ItemData item)
         {
@@ -51,46 +52,61 @@ namespace Cjayride.SenealCapeOnLogin
 
             try
             {
-                if (!(bool)ReadyMethod.Invoke(null, new object[] { inventory }))
+                if (!Ready(inventory))
                     return;
 
-                RelocateMethod.Invoke(null, new object[] { inventory, item });
-                ChangedMethod?.Invoke(null, new object[] { inventory });
+                Relocate(inventory, item);
+                Changed?.Invoke(inventory);
             }
             catch
             {
                 // Best-effort UI layout; cape logic already applied via CapeSlot.Set.
             }
         }
+
+        private static T DelegateFor<T>(MethodInfo method) where T : Delegate
+        {
+            return method == null ? null : AccessTools.MethodDelegate<T>(method);
+        }
     }
 
     internal static class SenealBackpacks
     {
-        private static readonly MethodInfo IsBackpackMethod;
-        private static readonly FieldInfo OnField;
+        private static readonly Func<ItemDrop.ItemData, bool> IsBackpackFn;
+        private static readonly AccessTools.FieldRef<bool> On;
 
         static SenealBackpacks()
         {
             var backpacks = AccessTools.TypeByName("SeneaLUI.Mods.Backpacks");
-            IsBackpackMethod = backpacks != null ? AccessTools.Method(backpacks, "IsBackpack") : null;
-            OnField = backpacks != null ? AccessTools.Field(backpacks, "On") : null;
+            if (backpacks == null)
+                return;
+
+            IsBackpackFn = DelegateFor<Func<ItemDrop.ItemData, bool>>(AccessTools.Method(backpacks, "IsBackpack"));
+            var onField = AccessTools.Field(backpacks, "On");
+            if (onField != null)
+                On = AccessTools.StaticFieldRefAccess<bool>(onField);
         }
 
-        internal static bool Ready => OnField != null && (bool)OnField.GetValue(null);
+        internal static bool Ready => On != null && On();
 
         internal static bool IsBackpack(ItemDrop.ItemData item)
         {
-            if (item == null || IsBackpackMethod == null)
+            if (item == null || IsBackpackFn == null)
                 return false;
 
             try
             {
-                return (bool)IsBackpackMethod.Invoke(null, new object[] { item });
+                return IsBackpackFn(item);
             }
             catch
             {
                 return false;
             }
+        }
+
+        private static T DelegateFor<T>(MethodInfo method) where T : Delegate
+        {
+            return method == null ? null : AccessTools.MethodDelegate<T>(method);
         }
     }
 
@@ -100,11 +116,12 @@ namespace Cjayride.SenealCapeOnLogin
     /// </summary>
     internal static class SenealCapeSlot
     {
-        private static readonly MethodInfo SetMethod;
-        private static readonly MethodInfo UpdateModifiersMethod;
-        private static readonly MethodInfo UpdateEquipmentMethod;
-        private static readonly FieldInfo ItemField;
-        private static readonly FieldInfo OwnerField;
+        private static readonly Action<Humanoid, ItemDrop.ItemData, bool> Set;
+        private static readonly Action<Player> UpdateModifiers;
+        private static readonly Action<Humanoid, float> UpdateEquipment;
+        private static readonly Func<ItemDrop.ItemData, bool> IsCapeFn;
+        private static readonly AccessTools.FieldRef<ItemDrop.ItemData> SlotItem;
+        private static readonly AccessTools.FieldRef<Humanoid> Owner;
         private static readonly AccessTools.FieldRef<Humanoid, ItemDrop.ItemData> ShoulderItem =
             AccessTools.FieldRefAccess<Humanoid, ItemDrop.ItemData>("m_shoulderItem");
 
@@ -114,15 +131,21 @@ namespace Cjayride.SenealCapeOnLogin
             if (capeSlot == null)
                 return;
 
-            SetMethod = AccessTools.Method(capeSlot, "Set");
-            UpdateModifiersMethod = AccessTools.Method(capeSlot, "UpdateModifiers");
-            UpdateEquipmentMethod = AccessTools.Method(capeSlot, "UpdateEquipment");
-            ItemField = AccessTools.Field(capeSlot, "Item");
-            OwnerField = AccessTools.Field(capeSlot, "_owner");
+            Set = DelegateFor<Action<Humanoid, ItemDrop.ItemData, bool>>(AccessTools.Method(capeSlot, "Set"));
+            UpdateModifiers = DelegateFor<Action<Player>>(AccessTools.Method(capeSlot, "UpdateModifiers"));
+            UpdateEquipment = DelegateFor<Action<Humanoid, float>>(AccessTools.Method(capeSlot, "UpdateEquipment"));
+            IsCapeFn = DelegateFor<Func<ItemDrop.ItemData, bool>>(AccessTools.Method(capeSlot, "IsCape"));
+
+            var itemField = AccessTools.Field(capeSlot, "Item");
+            if (itemField != null)
+                SlotItem = AccessTools.StaticFieldRefAccess<ItemDrop.ItemData>(itemField);
+
+            var ownerField = AccessTools.Field(capeSlot, "_owner");
+            if (ownerField != null)
+                Owner = AccessTools.StaticFieldRefAccess<Humanoid>(ownerField);
         }
 
-        internal static bool Available =>
-            SetMethod != null && ItemField != null && UpdateModifiersMethod != null;
+        internal static bool Available => Set != null && SlotItem != null && UpdateModifiers != null;
 
         internal static bool TryReapply(Player player)
         {
@@ -140,22 +163,20 @@ namespace Cjayride.SenealCapeOnLogin
             if (shoulder != null && !SenealBackpacks.IsBackpack(shoulder))
                 return false;
 
-            var slotItem = ItemField.GetValue(null) as ItemDrop.ItemData;
+            var slotItem = SlotItem();
             var cape = ResolveCape(inventory, slotItem);
             if (cape == null)
                 return false;
 
-            var owner = OwnerField?.GetValue(null) as Humanoid;
+            var owner = Owner != null ? Owner() : null;
             if (owner != player || slotItem != cape || !cape.m_equipped)
-                SetMethod.Invoke(null, new object[] { player, cape, false });
+                Set(player, cape, false);
 
-            UpdateModifiersMethod.Invoke(null, new object[] { player });
-            if (UpdateEquipmentMethod != null)
-                UpdateEquipmentMethod.Invoke(null, new object[] { player, 0f });
-
+            UpdateModifiers(player);
+            UpdateEquipment?.Invoke(player, 0f);
             SenealInventorySlots.PlaceInEquipRow(inventory, cape);
 
-            return ItemField.GetValue(null) == cape;
+            return SlotItem() == cape;
         }
 
         private static ItemDrop.ItemData ResolveCape(Inventory inventory, ItemDrop.ItemData slotItem)
@@ -165,15 +186,20 @@ namespace Cjayride.SenealCapeOnLogin
 
             ItemDrop.ItemData equipped = null;
             ItemDrop.ItemData fallback = null;
-
-            foreach (var item in inventory.GetAllItems())
+            var items = inventory.GetAllItems();
+            var count = items.Count;
+            for (int i = 0; i < count; i++)
             {
+                var item = items[i];
                 if (!IsCape(item))
                     continue;
 
                 fallback ??= item;
                 if (item.m_equipped)
+                {
                     equipped = item;
+                    break;
+                }
             }
 
             return equipped ?? fallback;
@@ -184,8 +210,25 @@ namespace Cjayride.SenealCapeOnLogin
             if (item?.m_shared == null)
                 return false;
 
+            if (IsCapeFn != null)
+            {
+                try
+                {
+                    return IsCapeFn(item);
+                }
+                catch
+                {
+                    // Fall through to local check.
+                }
+            }
+
             return item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Shoulder
                    && !SenealBackpacks.IsBackpack(item);
+        }
+
+        private static T DelegateFor<T>(MethodInfo method) where T : Delegate
+        {
+            return method == null ? null : AccessTools.MethodDelegate<T>(method);
         }
     }
 
@@ -195,7 +238,7 @@ namespace Cjayride.SenealCapeOnLogin
         private static void Postfix(Player __instance) => CapeReapplyScheduler.ScheduleReapply(__instance);
     }
 
-    [HarmonyPatch(typeof(Player), nameof(Player.OnSpawned))]
+    [HarmonyPatch(typeof(Player), nameof(Player.OnSpawned), typeof(bool))]
     internal static class PlayerOnSpawnedReapplyCape
     {
         private static void Postfix(Player __instance) => CapeReapplyScheduler.ScheduleReapply(__instance);
@@ -209,26 +252,36 @@ namespace Cjayride.SenealCapeOnLogin
 
     internal static class CapeReapplyScheduler
     {
+        private static int _generation;
+
         internal static void ScheduleReapply(Player player)
         {
             if (player != Player.m_localPlayer || !SenealCapeSlot.Available)
                 return;
 
-            player.StartCoroutine(ReapplyAfterLoad(player));
+            int generation = ++_generation;
+            player.StartCoroutine(ReapplyAfterLoad(player, generation));
         }
 
-        private static IEnumerator ReapplyAfterLoad(Player player)
+        private static IEnumerator ReapplyAfterLoad(Player player, int generation)
         {
-            // Backpack probe, inventory load, and shoulder equip can finish many frames after OnSpawned.
-            const int maxFrames = 180;
-            for (int i = 0; i < maxFrames; i++)
+            // Backpack probe, inventory load, and shoulder equip can finish after OnSpawned.
+            for (int i = 0; i < 4; i++)
+                yield return null;
+
+            const int maxAttempts = 90;
+            for (int i = 0; i < maxAttempts; i++)
             {
+                if (generation != _generation)
+                    yield break;
+
                 if (player == null || player != Player.m_localPlayer)
                     yield break;
 
                 if (SenealCapeSlot.TryReapply(player))
                     yield break;
 
+                yield return null;
                 yield return null;
             }
         }

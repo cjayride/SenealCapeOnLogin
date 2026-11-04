@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4
+
+- Verified `Player.Load(ZPackage)`, `Player.OnSpawned(bool)`, `Player.OnRespawn()`, and `Humanoid.m_shoulderItem` against Valheim 1.0.21.
+- Cache SeneaL API delegates and static field refs instead of `MethodInfo.Invoke` / `FieldInfo.GetValue` on every retry.
+- Collapse overlapping load/spawn/respawn retries into one generation-token coroutine; poll every other frame.
+- Use SeneaL `CapeSlot.IsCape` when present and stop the inventory scan once an equipped cape is found.
+
 ## 1.0.3
 
 - Verified against Valheim 1.0.21 (Release build).
