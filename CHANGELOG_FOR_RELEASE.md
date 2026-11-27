@@ -1,6 +1,11 @@
-# SeneaL Cape On Login — changelog (1.0.5)
+# SeneaL Cape On Login — changelog (1.0.6)
 
 Use this for Thunderstore “Changelog” or release notes.
+
+## 1.0.6
+
+- Longer cape re-apply after login, spawn, and respawn (including Rune of Recall): about 6s on listen-host, about 15s as a dedicated-server client.
+- Retry on inventory changes while that load window is open so a late backpack/cape settle still restores the SeneaL cape slot.
 
 ## 1.0.5
 

@@ -13,7 +13,7 @@ namespace Cjayride.SenealCapeOnLogin
     {
         public const string PluginGuid = "cjayride.SenealCapeOnLogin";
         public const string PluginName = "SeneaL Cape On Login";
-        public const string PluginVersion = "1.0.5";
+        public const string PluginVersion = "1.0.6";
 
         private void Awake()
         {
@@ -414,6 +414,16 @@ namespace Cjayride.SenealCapeOnLogin
         }
     }
 
+    [HarmonyPatch(typeof(Inventory), "Changed")]
+    [HarmonyPriority(Priority.Last)]
+    internal static class InventoryChangedRetryCape
+    {
+        private static void Postfix(Inventory __instance)
+        {
+            CapeReapplyScheduler.TryDuringLoadWindow(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.EquipItem))]
     [HarmonyPriority(Priority.Last)]
     internal static class EquipCapeMoveToSlot
@@ -440,10 +450,12 @@ namespace Cjayride.SenealCapeOnLogin
     internal static class CapeReapplyScheduler
     {
         private static int _generation;
+        private static bool _loadWindow;
 
         internal static void CancelPending()
         {
             _generation++;
+            _loadWindow = false;
         }
 
         internal static void ScheduleReapply(Player player)
@@ -452,7 +464,21 @@ namespace Cjayride.SenealCapeOnLogin
                 return;
 
             int generation = ++_generation;
+            _loadWindow = true;
             player.StartCoroutine(ReapplyAfterLoad(player, generation));
+        }
+
+        internal static void TryDuringLoadWindow(Inventory inventory)
+        {
+            if (!_loadWindow || inventory == null)
+                return;
+
+            var player = Player.m_localPlayer;
+            if (player == null || inventory != player.GetInventory())
+                return;
+
+            if (SenealCapeSlot.TryReapply(player))
+                CloseWindow();
         }
 
         internal static void ScheduleUiSync(Player player)
@@ -461,6 +487,18 @@ namespace Cjayride.SenealCapeOnLogin
                 return;
 
             player.StartCoroutine(SyncAfterUnequip(player));
+        }
+
+        private static void CloseWindow()
+        {
+            _generation++;
+            _loadWindow = false;
+        }
+
+        private static bool IsDedicatedClient()
+        {
+            var net = ZNet.instance;
+            return net != null && !net.IsServer();
         }
 
         private static IEnumerator SyncAfterUnequip(Player player)
@@ -481,7 +519,8 @@ namespace Cjayride.SenealCapeOnLogin
             for (int i = 0; i < 4; i++)
                 yield return null;
 
-            const int maxAttempts = 90;
+            // Dedicated join / Rune of Recall can settle gear well after local listen-host spawn.
+            int maxAttempts = IsDedicatedClient() ? 450 : 180;
             for (int i = 0; i < maxAttempts; i++)
             {
                 if (generation != _generation)
@@ -491,11 +530,17 @@ namespace Cjayride.SenealCapeOnLogin
                     yield break;
 
                 if (SenealCapeSlot.TryReapply(player))
+                {
+                    CloseWindow();
                     yield break;
+                }
 
                 yield return null;
                 yield return null;
             }
+
+            if (generation == _generation)
+                _loadWindow = false;
         }
     }
 }

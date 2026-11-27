@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.6
+
+- Longer cape re-apply after login, spawn, and respawn (including Rune of Recall): about 6s on listen-host, about 15s as a dedicated-server client.
+- Retry on inventory changes while that load window is open so a late backpack/cape settle still restores the SeneaL cape slot.
+- Still only restores capes that are already equipped; taking the cape off still cancels pending retries.
+
 ## 1.0.5
 
 - After unequipping an Adventure Backpack, the cape is moved back into the SeneaL cape cell (`Slots.Relocate`). SeneaL was re-equipping the cape on the shoulder for stats but leaving it in the bag grid, so the cape slot looked empty and the next click unequipped it (eitr dropped to 0).
