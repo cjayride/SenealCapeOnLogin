@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.5
+
+- After unequipping an Adventure Backpack, the cape is moved back into the SeneaL cape cell (`Slots.Relocate`). SeneaL was re-equipping the cape on the shoulder for stats but leaving it in the bag grid, so the cape slot looked empty and the next click unequipped it (eitr dropped to 0).
+- **Fixed:** Cape stayed equipped or snapped back when you tried to take it off. UI sync now runs only for cape/backpack equips and login recovery, and only on capes that are actually equipped.
+- **Fixed:** Extra-cape unequip uses the normal equip duration bar; stale `CapeSlot.Item` refs are cleared so equip/unequip is not blocked.
+- **Fixed:** Clicking the cape in the SeneaL cape cell while a backpack is on the shoulder unequips that extra cape on the first click.
+- **Fixed:** After backpack off, then cape off, stats now drop on the first click (clears `m_shoulderItem` when SeneaL skips vanilla unequip).
+
 ## 1.0.4
 
 - Verified `Player.Load(ZPackage)`, `Player.OnSpawned(bool)`, `Player.OnRespawn()`, and `Humanoid.m_shoulderItem` against Valheim 1.0.21.

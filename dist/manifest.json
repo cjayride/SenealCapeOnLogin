@@ -1,6 +1,6 @@
 {
   "name": "SenealCapeOnLogin",
-  "version_number": "1.0.4",
+  "version_number": "1.0.5",
   "website_url": "https://github.com/cjayride/SenealCapeOnLogin",
   "description": "Re-applies your SeneaL UI cape after login when an Adventure Backpack is wearing the shoulder slot. Client side.",
   "dependencies": [

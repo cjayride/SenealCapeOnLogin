@@ -27,7 +27,7 @@ The Thunderstore package can be built locally. The generated archive is not comm
 
 Expected package output:
 
-`dist/cjayride-SenealCapeOnLogin-1.0.4.zip`
+`dist/cjayride-SenealCapeOnLogin-1.0.5.zip`
 
 ## 🎨 Icon
 

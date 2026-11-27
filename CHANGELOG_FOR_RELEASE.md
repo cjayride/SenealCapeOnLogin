@@ -1,6 +1,12 @@
-# SeneaL Cape On Login — changelog (1.0.4)
+# SeneaL Cape On Login — changelog (1.0.5)
 
 Use this for Thunderstore “Changelog” or release notes.
+
+## 1.0.5
+
+- **Fixed:** Unequipping an Adventure Backpack relocates the cape into the SeneaL cape cell so the slot matches equipped stats.
+- **Fixed:** Cape no longer snaps back or stays equipped when you unequip; backpack-off then cape-off clears stats on the first click.
+- **Fixed:** Extra cape unequip from the SeneaL cell respects the equip duration bar; first-click unequip works with a backpack on the shoulder.
 
 ## 1.0.4
 

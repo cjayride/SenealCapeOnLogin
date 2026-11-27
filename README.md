@@ -13,7 +13,7 @@ Designed to work with **Adventure Backpacks**, including when the backpack occup
 - **Adventure Backpacks compatibility** with shoulder-slot equipment.
 - **Inventory recovery** if SeneaL UI's cape reference is cleared during loading.
 - **Delayed retry handling** to allow equipment initialization to finish before restoring the cape.
-- **Correct equipment layout** by relocating the cape into the equipment row instead of leaving it in the inventory grid.
+- **Correct equipment layout** by relocating the cape into the equipment row instead of leaving it in the inventory grid (login and after unequipping a backpack).
 
 ## 📦 Installation
 
@@ -27,7 +27,7 @@ The Thunderstore package can be built locally. The generated archive is not comm
 
 Expected package output:
 
-`dist/cjayride-SenealCapeOnLogin-1.0.4.zip`
+`dist/cjayride-SenealCapeOnLogin-1.0.5.zip`
 
 ## 🎨 Icon
 

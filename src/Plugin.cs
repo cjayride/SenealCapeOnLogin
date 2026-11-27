@@ -13,7 +13,7 @@ namespace Cjayride.SenealCapeOnLogin
     {
         public const string PluginGuid = "cjayride.SenealCapeOnLogin";
         public const string PluginName = "SeneaL Cape On Login";
-        public const string PluginVersion = "1.0.4";
+        public const string PluginVersion = "1.0.5";
 
         private void Awake()
         {
@@ -21,7 +21,7 @@ namespace Cjayride.SenealCapeOnLogin
             if (!SenealCapeSlot.Available)
                 Logger.LogWarning("SeneaL CapeSlot API not found; cape re-apply will not run.");
             else
-                Logger.LogInfo("Re-applies SeneaL UI cape slot after load when a backpack uses the shoulder slot.");
+                Logger.LogInfo("Cape slot re-apply after load; extra cape unequip when backpack occupies the shoulder.");
         }
     }
 
@@ -147,6 +147,88 @@ namespace Cjayride.SenealCapeOnLogin
 
         internal static bool Available => Set != null && SlotItem != null && UpdateModifiers != null;
 
+        internal static ItemDrop.ItemData ExtraCape => SlotItem != null ? SlotItem() : null;
+
+        internal static bool IsCapePublic(ItemDrop.ItemData item) => IsCape(item);
+
+        internal static bool IsExtraCape(ItemDrop.ItemData item)
+        {
+            return item != null && SlotItem != null && SlotItem() == item;
+        }
+
+        /// <summary>
+        /// CapeSlot.EquipPre no-ops when <c>item == Item</c>. After a failed unequip
+        /// that left the static ref set with <c>m_equipped == false</c>, every later
+        /// EquipItem is refused. Drop the stale ref so Set() can run.
+        /// </summary>
+        internal static void ForgetIfNotWorn(ItemDrop.ItemData item)
+        {
+            if (item == null || SlotItem == null || SlotItem() != item || item.m_equipped)
+                return;
+
+            SlotItem() = null;
+            if (Owner != null)
+                Owner() = null;
+        }
+
+        /// <summary>
+        /// CapeSlot.UnequipPre Clear()s the extra slot and skips vanilla unequip.
+        /// If the cape is also <c>m_shoulderItem</c> (backpack already off), it stays
+        /// worn for stats while SeneaL Evicts it into the bag.
+        /// </summary>
+        internal static void ForceOff(Player player, ItemDrop.ItemData cape)
+        {
+            if (player == null || cape == null || !IsCape(cape))
+                return;
+
+            if (SlotItem != null && SlotItem() == cape)
+            {
+                SlotItem() = null;
+                if (Owner != null)
+                    Owner() = null;
+            }
+
+            cape.m_equipped = false;
+            if (ShoulderItem(player) == cape)
+                ShoulderItem(player) = null;
+
+            try
+            {
+                UpdateModifiers?.Invoke(player);
+                UpdateEquipment?.Invoke(player, 0f);
+            }
+            catch
+            {
+            }
+        }
+
+        /// <summary>
+        /// After a backpack leaves the shoulder, SeneaL re-equips the cape on
+        /// <c>m_shoulderItem</c> but does not call <c>Slots.Relocate</c>, so the
+        /// cape stays in the bag grid (stats on, cape cell empty).
+        /// </summary>
+        /// <param name="afterBackpackSync">Shoulder-only cape after removing a backpack (SeneaL has not updated the slot ref yet).</param>
+        internal static bool PlaceCapeInUi(Player player, bool afterBackpackSync = false)
+        {
+            if (!SenealInventorySlots.Available || player == null || player != Player.m_localPlayer)
+                return false;
+
+            var inventory = player.GetInventory();
+            if (inventory == null)
+                return false;
+
+            var slotItem = SlotItem();
+            var cape = ShoulderItem(player);
+            if (!IsCape(cape) || !cape.m_equipped)
+                return false;
+
+            if (!afterBackpackSync && slotItem != cape)
+                return false;
+
+            SenealInventorySlots.PlaceInEquipRow(inventory, cape);
+            return true;
+        }
+
         internal static bool TryReapply(Player player)
         {
             if (!Available || player == null || player != Player.m_localPlayer)
@@ -160,16 +242,21 @@ namespace Cjayride.SenealCapeOnLogin
                 return false;
 
             var shoulder = ShoulderItem(player);
-            if (shoulder != null && !SenealBackpacks.IsBackpack(shoulder))
-                return false;
-
             var slotItem = SlotItem();
+            if (shoulder != null && !SenealBackpacks.IsBackpack(shoulder))
+            {
+                if (slotItem == null)
+                    return false;
+
+                return PlaceCapeInUi(player);
+            }
+
             var cape = ResolveCape(inventory, slotItem);
-            if (cape == null)
+            if (cape == null || !cape.m_equipped)
                 return false;
 
             var owner = Owner != null ? Owner() : null;
-            if (owner != player || slotItem != cape || !cape.m_equipped)
+            if (owner != player || slotItem != cape)
                 Set(player, cape, false);
 
             UpdateModifiers(player);
@@ -184,25 +271,18 @@ namespace Cjayride.SenealCapeOnLogin
             if (slotItem != null && inventory.ContainsItem(slotItem))
                 return slotItem;
 
-            ItemDrop.ItemData equipped = null;
-            ItemDrop.ItemData fallback = null;
             var items = inventory.GetAllItems();
             var count = items.Count;
             for (int i = 0; i < count; i++)
             {
                 var item = items[i];
-                if (!IsCape(item))
+                if (!IsCape(item) || !item.m_equipped)
                     continue;
 
-                fallback ??= item;
-                if (item.m_equipped)
-                {
-                    equipped = item;
-                    break;
-                }
+                return item;
             }
 
-            return equipped ?? fallback;
+            return null;
         }
 
         private static bool IsCape(ItemDrop.ItemData item)
@@ -250,9 +330,121 @@ namespace Cjayride.SenealCapeOnLogin
         private static void Postfix(Player __instance) => CapeReapplyScheduler.ScheduleReapply(__instance);
     }
 
+    [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.EquipItem))]
+    [HarmonyPriority(900)]
+    internal static class EquipClearStaleExtraCape
+    {
+        private static void Prefix(Humanoid __instance, ItemDrop.ItemData item)
+        {
+            if (!(__instance is Player) || __instance != Player.m_localPlayer)
+                return;
+
+            SenealCapeSlot.ForgetIfNotWorn(item);
+        }
+    }
+
+    /// <summary>
+    /// Extra-cape unequip from the SeneaL cell calls <see cref="Humanoid.UnequipItem"/>
+    /// immediately. Vanilla capes go through <c>QueueUnequipAction</c> first so the
+    /// unequip bar matches equip. Intercept extra-cape unequip and queue it; when
+    /// the bar finishes, Valheim calls UnequipItem again and we let CapeSlot.Clear run.
+    /// </summary>
+    [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.UnequipItem))]
+    [HarmonyPriority(900)]
+    internal static class QueueExtraCapeUnequip
+    {
+        private static readonly Action<Player, ItemDrop.ItemData> QueueUnequip =
+            AccessTools.MethodDelegate<Action<Player, ItemDrop.ItemData>>(
+                AccessTools.Method(typeof(Player), "QueueUnequipAction"));
+
+        private static ItemDrop.ItemData _finishing;
+
+        private static bool Prefix(Humanoid __instance, ItemDrop.ItemData item)
+        {
+            if (QueueUnequip == null || !(__instance is Player player) || player != Player.m_localPlayer || item == null)
+                return true;
+
+            if (!SenealCapeSlot.IsExtraCape(item))
+                return true;
+
+            float duration = item.m_shared != null ? item.m_shared.m_equipDuration : 0f;
+            if (duration <= 0f)
+                return true;
+
+            if (_finishing == item)
+            {
+                _finishing = null;
+                return true;
+            }
+
+            if (player.IsEquipActionQueued(item))
+            {
+                player.RemoveEquipAction(item);
+                _finishing = null;
+                return false;
+            }
+
+            CapeReapplyScheduler.CancelPending();
+            _finishing = item;
+            QueueUnequip(player, item);
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.UnequipItem))]
+    [HarmonyPriority(Priority.Last)]
+    internal static class UnequipBackpackMoveCapeToSlot
+    {
+        private static void Postfix(Humanoid __instance, ItemDrop.ItemData item)
+        {
+            if (!(__instance is Player player) || player != Player.m_localPlayer || item == null)
+                return;
+
+            if (SenealCapeSlot.IsCapePublic(item))
+            {
+                CapeReapplyScheduler.CancelPending();
+                SenealCapeSlot.ForceOff(player, item);
+                return;
+            }
+
+            if (!SenealBackpacks.IsBackpack(item))
+                return;
+
+            CapeReapplyScheduler.ScheduleUiSync(player);
+        }
+    }
+
+    [HarmonyPatch(typeof(Humanoid), nameof(Humanoid.EquipItem))]
+    [HarmonyPriority(Priority.Last)]
+    internal static class EquipCapeMoveToSlot
+    {
+        private static void Postfix(Humanoid __instance, ItemDrop.ItemData item, bool __result)
+        {
+            if (!__result || !(__instance is Player player) || player != Player.m_localPlayer)
+                return;
+
+            if (!SenealCapeSlot.Available)
+                return;
+
+            if (SenealBackpacks.IsBackpack(item))
+            {
+                CapeReapplyScheduler.ScheduleReapply(player);
+                return;
+            }
+
+            if (SenealCapeSlot.IsCapePublic(item))
+                SenealCapeSlot.PlaceCapeInUi(player);
+        }
+    }
+
     internal static class CapeReapplyScheduler
     {
         private static int _generation;
+
+        internal static void CancelPending()
+        {
+            _generation++;
+        }
 
         internal static void ScheduleReapply(Player player)
         {
@@ -261,6 +453,26 @@ namespace Cjayride.SenealCapeOnLogin
 
             int generation = ++_generation;
             player.StartCoroutine(ReapplyAfterLoad(player, generation));
+        }
+
+        internal static void ScheduleUiSync(Player player)
+        {
+            if (player != Player.m_localPlayer)
+                return;
+
+            player.StartCoroutine(SyncAfterUnequip(player));
+        }
+
+        private static IEnumerator SyncAfterUnequip(Player player)
+        {
+            yield return null;
+            if (player == null || player != Player.m_localPlayer)
+                yield break;
+
+            if (SenealCapeSlot.PlaceCapeInUi(player, afterBackpackSync: true))
+                yield break;
+
+            SenealCapeSlot.TryReapply(player);
         }
 
         private static IEnumerator ReapplyAfterLoad(Player player, int generation)
