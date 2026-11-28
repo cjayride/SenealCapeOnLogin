@@ -1,6 +1,11 @@
-# SeneaL Cape On Login — changelog (1.0.6)
+# SeneaL Cape On Login — changelog (1.0.7)
 
 Use this for Thunderstore “Changelog” or release notes.
+
+## 1.0.7
+
+- **Fixed:** Epic Loot legendary **set** shoulder capes (e.g. Ragnar's Boneless Wrap) not returning to the SeneaL cape slot after login when Epic Loot load cleared `m_equipped` before the retry window.
+- Snapshot the worn cape when inventory loads from save; restore during the login retry window even if the equipped flag was cleared later.
 
 ## 1.0.6
 

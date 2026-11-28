@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7
+
+- **Fixed:** Epic Loot legendary **set** shoulder capes (e.g. Ragnar's Boneless Wrap) not returning to the SeneaL cape slot after login when Epic Loot load cleared `m_equipped` before the retry window.
+- Snapshot the worn cape when inventory loads from the character save; restore that item during the login retry window even if the equipped flag was cleared later.
+- When several capes qualify, prefer Epic Loot magic items over mundane duplicates (e.g. spare Wolf capes).
+
 ## 1.0.6
 
 - Longer cape re-apply after login, spawn, and respawn (including Rune of Recall): about 6s on listen-host, about 15s as a dedicated-server client.

@@ -13,7 +13,7 @@ namespace Cjayride.SenealCapeOnLogin
     {
         public const string PluginGuid = "cjayride.SenealCapeOnLogin";
         public const string PluginName = "SeneaL Cape On Login";
-        public const string PluginVersion = "1.0.6";
+        public const string PluginVersion = "1.0.7";
 
         private void Awake()
         {
@@ -229,7 +229,7 @@ namespace Cjayride.SenealCapeOnLogin
             return true;
         }
 
-        internal static bool TryReapply(Player player)
+        internal static bool TryReapply(Player player, bool loadWindow, ItemDrop.ItemData loginCape)
         {
             if (!Available || player == null || player != Player.m_localPlayer)
                 return false;
@@ -251,9 +251,15 @@ namespace Cjayride.SenealCapeOnLogin
                 return PlaceCapeInUi(player);
             }
 
-            var cape = ResolveCape(inventory, slotItem);
-            if (cape == null || !cape.m_equipped)
+            var cape = ResolveCape(inventory, slotItem, loginCape);
+            if (cape == null)
                 return false;
+
+            bool worn = cape.m_equipped || (loadWindow && loginCape != null && cape == loginCape);
+            if (!worn)
+                return false;
+
+            ForgetIfNotWorn(cape);
 
             var owner = Owner != null ? Owner() : null;
             if (owner != player || slotItem != cape)
@@ -266,11 +272,63 @@ namespace Cjayride.SenealCapeOnLogin
             return SlotItem() == cape;
         }
 
-        private static ItemDrop.ItemData ResolveCape(Inventory inventory, ItemDrop.ItemData slotItem)
+        private static ItemDrop.ItemData ResolveCape(Inventory inventory, ItemDrop.ItemData slotItem, ItemDrop.ItemData loginCape)
         {
             if (slotItem != null && inventory.ContainsItem(slotItem))
                 return slotItem;
 
+            if (loginCape != null && inventory.ContainsItem(loginCape))
+                return loginCape;
+
+            var items = inventory.GetAllItems();
+            var count = items.Count;
+            ItemDrop.ItemData best = null;
+            for (int i = 0; i < count; i++)
+            {
+                var item = items[i];
+                if (!IsCape(item) || !item.m_equipped)
+                    continue;
+
+                if (best == null || CapeScore(item) > CapeScore(best))
+                    best = item;
+            }
+
+            return best;
+        }
+
+        internal static bool HasEpicLootMagic(ItemDrop.ItemData item)
+        {
+            var data = item?.m_customData;
+            if (data == null || data.Count == 0)
+                return false;
+
+            foreach (var key in data.Keys)
+            {
+                if (key.IndexOf("epicloot", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static int CapeScore(ItemDrop.ItemData item)
+        {
+            if (item == null)
+                return int.MinValue;
+
+            int score = item.m_equipped ? 1 : 0;
+            if (HasEpicLootMagic(item))
+                score += 4;
+
+            return score;
+        }
+
+        internal static ItemDrop.ItemData FindBestEquippedCape(Inventory inventory)
+        {
+            if (inventory == null)
+                return null;
+
+            ItemDrop.ItemData best = null;
             var items = inventory.GetAllItems();
             var count = items.Count;
             for (int i = 0; i < count; i++)
@@ -279,10 +337,11 @@ namespace Cjayride.SenealCapeOnLogin
                 if (!IsCape(item) || !item.m_equipped)
                     continue;
 
-                return item;
+                if (best == null || CapeScore(item) > CapeScore(best))
+                    best = item;
             }
 
-            return null;
+            return best;
         }
 
         private static bool IsCape(ItemDrop.ItemData item)
@@ -309,6 +368,19 @@ namespace Cjayride.SenealCapeOnLogin
         private static T DelegateFor<T>(MethodInfo method) where T : Delegate
         {
             return method == null ? null : AccessTools.MethodDelegate<T>(method);
+        }
+    }
+
+    [HarmonyPatch(typeof(Inventory), nameof(Inventory.Load), typeof(ZPackage))]
+    internal static class InventoryLoadRememberCape
+    {
+        private static void Postfix(Inventory __instance)
+        {
+            var player = Player.m_localPlayer;
+            if (player == null || __instance != player.GetInventory())
+                return;
+
+            CapeReapplyScheduler.RememberCapeFromInventory(__instance);
         }
     }
 
@@ -451,17 +523,29 @@ namespace Cjayride.SenealCapeOnLogin
     {
         private static int _generation;
         private static bool _loadWindow;
+        private static ItemDrop.ItemData _loginCape;
 
         internal static void CancelPending()
         {
             _generation++;
             _loadWindow = false;
+            _loginCape = null;
+        }
+
+        internal static void RememberCapeFromInventory(Inventory inventory)
+        {
+            var cape = SenealCapeSlot.FindBestEquippedCape(inventory);
+            if (cape != null)
+                _loginCape = cape;
         }
 
         internal static void ScheduleReapply(Player player)
         {
             if (player != Player.m_localPlayer || !SenealCapeSlot.Available)
                 return;
+
+            if (_loginCape == null)
+                RememberCapeFromInventory(player.GetInventory());
 
             int generation = ++_generation;
             _loadWindow = true;
@@ -477,7 +561,7 @@ namespace Cjayride.SenealCapeOnLogin
             if (player == null || inventory != player.GetInventory())
                 return;
 
-            if (SenealCapeSlot.TryReapply(player))
+            if (SenealCapeSlot.TryReapply(player, _loadWindow, _loginCape))
                 CloseWindow();
         }
 
@@ -493,6 +577,7 @@ namespace Cjayride.SenealCapeOnLogin
         {
             _generation++;
             _loadWindow = false;
+            _loginCape = null;
         }
 
         private static bool IsDedicatedClient()
@@ -510,7 +595,7 @@ namespace Cjayride.SenealCapeOnLogin
             if (SenealCapeSlot.PlaceCapeInUi(player, afterBackpackSync: true))
                 yield break;
 
-            SenealCapeSlot.TryReapply(player);
+            SenealCapeSlot.TryReapply(player, _loadWindow, _loginCape);
         }
 
         private static IEnumerator ReapplyAfterLoad(Player player, int generation)
@@ -529,7 +614,7 @@ namespace Cjayride.SenealCapeOnLogin
                 if (player == null || player != Player.m_localPlayer)
                     yield break;
 
-                if (SenealCapeSlot.TryReapply(player))
+                if (SenealCapeSlot.TryReapply(player, _loadWindow, _loginCape))
                 {
                     CloseWindow();
                     yield break;
